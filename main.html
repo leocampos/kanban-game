@@ -1,0 +1,471 @@
+<html>
+<head>
+<title>Get Kanban</title>
+<style>
+#board td {
+	border: solid 1px #CCCCCC;
+	font: 12px Arial;
+}
+
+#board-head td {
+	font: bold 16px Arial;
+	
+	text-align: center;
+}
+
+#board #game {
+	height: 400px;
+}
+
+#expedite-lane {
+	height: 120px;
+}
+
+#deploy-column {
+	min-width:185px;
+}
+
+ul { list-style-type: none; margin: 0; padding: 0; margin-bottom: 0px; }
+li { margin: 0px; padding: 0px; width: 180px; }
+
+.die {
+	width: 25px;
+	height: 25px;
+	font: bold 12px Arial, Georgia;
+	text-align: center;
+	float: left;
+	margin-right: 5px;
+}
+
+.die-grey {
+	background-color: #EFEFEF;
+	color: #CCC;
+}
+
+.die-blue {
+	background-color: #0000DD;
+	color: #FFF;
+}
+
+.die-red {
+	background-color: #CC0000;
+	color: #FFF;
+}
+
+.die-orange {
+	background-color: #FF7700;
+	color: #FFF;
+}
+
+input[type='radio'] {
+	width: 4px;
+	margin: 0px;
+	margin-right: 8px;
+}
+
+.standard-class, .intangible-class, .fixed-date-class, .expedite-class {
+	background-color: #FFF36E;
+	width: 180px;
+	margin-bottom: 8px;
+}
+
+.intangible-class {
+	background-color: #86FF6E;
+}
+
+.fixed-date-class {
+	background-color: #C56EFF;
+}
+
+.expedite-class {
+	background-color: #FFF;
+}
+
+.design-row .story-name-column {
+	color: #FFF;
+	background-color: #CC0000;
+}
+
+.design-row .story-work-column {
+	background-color: #FFAAAA;
+}
+
+.development-row .story-name-column {
+	color: #FFF;
+	background-color: #0000CC;
+}
+
+.development-row .story-work-column {
+	background-color: #AAAAFF;
+}
+
+.test-row .story-name-column {
+	color: #000;
+	background-color: #FF7700;
+}
+
+.test-row .story-work-column {
+	background-color: #FFB06B;
+}
+
+.subtitle {
+	font-size: 10px;
+}
+</style>
+<script src="javascript/jquery-1.7.2.js"></script>
+<script src="javascript/jquery-ui-1.8.21.custom.min.js"></script>
+<script>
+if(!String.format) {
+	String.prototype.format = function(data) {
+		var retorno = this;
+		
+		while(match = retorno.match(/\$\{(\w+)\}/)) {
+			var substitutionValue = (typeof data == 'object') ? data[match[1]] : data;
+			substitutionValue = typeof substitutionValue == 'undefined' ? '' : substitutionValue;
+			
+			retorno = retorno.replace(/\$\{\w+\}/, substitutionValue);
+		}
+		
+		return retorno;
+	}
+}
+
+var idCreate = function(size) {
+	var letters = "abcdefghijklmnopqrstuwxyz0123456789";
+	
+	var randomize = function() {
+		return (Math.round(Math.random() * letters.length) % letters.length + 1) - 1;
+	}
+	
+	var retorno = "";
+	for(var i=0;i<size;i++) {
+		retorno += letters.charAt(randomize());
+	}
+	
+	return retorno;
+}
+
+var UserStory = function(data) {
+	this.classOfService = 'standard';
+	this.name = 0;
+	this.subscribers = 0;
+	this.designWork = 0;
+	this.developmentWork = 0;
+	this.testWork = 0;
+	this.designDone = 0;
+	this.developmentDone = 0;
+	this.testDone = 0;
+	this.stage = 'ready';
+	this.cash = 0; //For the expedite
+	this.fine = 0; //For the fixed dates
+	this.dueDate = 0; //For the expedite and fixed dates
+	this.subtitle = '';
+	
+	for(prop in data) {
+		var value = data[prop]
+		var evalValue = typeof value == 'string' ? "'" + value + "'" : value;
+		try {
+			eval('this.' + prop + '=' + evalValue);
+		} catch(e) {
+			alert(e.message)
+		}
+	}
+	
+	this.draw = function() {
+		var designWork = "";
+		var _designDone = this.designDone;
+		for(var i = 0; i < this.designWork; i++) {
+			designWork += "<input type='radio' disabled${value}/>".format({'value':(_designDone > 0 ? " checked" : "")});
+			_designDone--;
+		}
+		
+		var developmentWork = "";
+		var _developmentDone = this.developmentDone;
+		for(var i = 0; i < this.developmentWork; i++) {
+			developmentWork += "<input type='radio' disabled${value}/>".format({'value':(_developmentDone > 0 ? " checked" : "")});
+			_developmentDone--;
+		}
+		
+		var testWork = "";
+		var _testDone = this.testDone;
+		for(var i = 0; i < this.testWork; i++) {
+			testWork += "<input type='radio' disabled${value}/>".format({'value':(_testDone > 0 ? " checked" : "")});
+			_testDone--;
+		}
+		
+		if(this.subscribers > 0) {
+			revenue = "subs: ${x}".format(this.subscribers);
+		} else if(this.fine > 0) {
+			revenue = "fine: ${x}".format(this.fine);
+		} else if(this.cash > 0) {
+			revenue = "cash: ${x}".format(this.cash);
+		} else {
+			revenue = "";
+		}
+
+		var html = "<li id='${name}'><table border='0' cellpadding='4' cellspacing='0' class='${classOfService}-class'>";
+		html += "<tr><td>${name}&nbsp;<span class='subtitle'>${subtitle}</span></td><td align='right'>${revenue}</td></tr>";
+		html += "<tr class='design-row'><td class='story-name-column'>Design</td><td class='story-work-column'>${designWork}</td></tr>";
+		html += "<tr class='development-row'><td class='story-name-column'>Dev.</td><td class='story-work-column'>${developmentWork}</td></tr>";
+		html += "<tr class='test-row'><td class='story-name-column'>Test</td><td class='story-work-column'>${testWork}</td></tr>";
+		html += "</table></li>";
+		html = html.format({'classOfService':this.classOfService, 'revenue':revenue, 'name': this.name, 'designWork': designWork, 'developmentWork': developmentWork, 'testWork': testWork, 'subtitle': this.subtitle});
+		
+		var _stage = this.stage == 'queue' ? this.classOfService + "-queue" : this.stage;
+		
+		$("#${stage}-column".format(_stage)).append(html);
+	}
+}
+
+var Die = function(colorName) {
+	this.color = colorName;
+	this.sides = 6;
+	this.id = "${colorName}${rand}".format({'colorName':colorName,'rand':idCreate(8)});
+	this.where = "";
+	
+	this.play = function() {
+		return Math.round(Math.random() * this.sides) % this.sides + 1;
+	}
+	
+	this.redraw = function() {
+		this.draw(this.where);
+	}
+	
+	this.draw = function(where, number) {
+		this.where = where;
+		var that = this;
+		var value = typeof arguments[1] == 'undefined' ? this.play() : number;
+		$("#${where}".format(where)).html("<table class='die die-${colorName}' id='${id}'><tr><td><span id='${id}-value'>${value}</span></td></tr></table>".format({'colorName':colorName, 'value': value,'id':this.id}));
+	}
+}
+
+var Worker = function(expertise) {
+	this.work = function(stage) {
+		mainStage = stage.replace(/-\w+/,"");
+
+		if(mainStage == expertise) {
+			
+		}
+	}
+}
+
+var Policy = function() {
+	this.readyLimit = 6;
+	this.designLimit = 3;
+	this.developmentLimit = 5;
+	this.testLimit = 3;
+	this.swarmingRestrictions = null;
+	this.developers = 3;
+	this.testers = 2;
+	this.designers = 2;
+}
+
+var Game = function(state) {
+	this.day = 9;
+	this.policy = new Policy();
+	this.stories = new Array();
+	this.queueStories = new Array();
+	this.round = 1;
+	
+	this.nextRound = function() {
+		if(this.round > 3) {
+			return;
+		}
+		
+		if(this.policy.developers >= this.round)
+			this.devDie.redraw();
+		
+		if(this.policy.testers >= this.round)	
+			this.testerDie.redraw();
+			
+		if(this.policy.designers >= this.round)
+			this.designerDie.redraw();
+			
+		this.round++;
+	}
+	
+	for(var i=0; i < state['stories'].length; i++) {
+		var storyHolder = state.stories[i].stage == 'queue' ? this.queueStories : this.stories;
+		storyHolder.push(new UserStory(state.stories[i]));
+	}
+	
+	this.advanceDay = function() {
+		this.day++;
+	}
+	
+	var initialize = function() {
+		// $(".dropable").droppable({
+		// 		drop: function( event, ui ) {
+		// 			var column = $(this).attr("title");
+		// 			alert($(ui.draggable).attr("id"));
+		// 		}
+		//  });
+	}
+	
+	this.draw = function() {
+		initialize();
+		
+		$('#ready-limit').html(this.policy.readyLimit);
+		$('#design-limit').html(this.policy.designLimit);
+		$('#development-limit').html(this.policy.developmentLimit);
+		$('#test-limit').html(this.policy.testLimit);
+		
+		for(var i=0; i<this.stories.length; i++) {
+			this.stories[i].draw();
+		}
+		// 
+		// var developersDice = {};
+		// var designersDice = {};
+		// var testersDice = {};
+		// for(var i=0;i<3;i++) {
+		this.devDie = new Die("blue");
+		// 	developersDice[devDie.id] = devDie;
+		this.devDie.draw('developer-die', '?');
+		// }
+		// 
+		// for(var i=0;i<2;i++) {
+		this.testerDie = new Die("orange");
+		// 	testersDice[testerDie.id] = testerDie;
+		this.testerDie.draw('tester-die', '?');
+		// }
+		// 
+		// for(var i=0;i<2;i++) {
+		this.designerDie = new Die("red");
+		// 	designersDice[designerDie.id] = designerDie;
+		this.designerDie.draw('designer-die', '?');
+		// }
+	}
+}
+
+var state = {
+	'stories': [
+		{name:'S1', subscribers: 11, designWork: 10, designDone: 10, developmentWork: 11, developmentDone: 11, testWork: 11, stage: 'test-doing', dayReady: 1},
+		{name:'S2', subscribers: 12, designWork: 12, designDone: 12, developmentWork: 13, developmentDone: 13, testWork: 12, testDone:0, stage:'test-doing', dayReady: 1},
+		{name:'S3', subscribers: 11, designWork: 11, designDone: 11, developmentWork: 12, developmentDone: 12, testWork: 11, testDone:0, stage: 'test-doing', dayReady: 1},
+		{name:'S4', subscribers: 10, designWork: 8, designDone: 8, developmentWork: 11, developmentDone: 11, testWork: 11, testDone:0, stage: 'development-done', dayReady: 2},
+		{name:'S5', subscribers: 13, designWork: 12, designDone: 12, developmentWork: 14, developmentDone: 14, testWork: 13, testDone:0, stage: 'development-done', dayReady: 2},
+		{name:'S6', subscribers: 11, designWork: 9, designDone: 9, developmentWork: 11, developmentDone: 3, testWork: 12, testDone:0, stage: 'development-doing', dayReady: 3},
+		{name:'S7', subscribers: 12, designWork: 10, designDone: 10, developmentWork: 13, developmentDone: 0, testWork: 14, testDone:0, stage: 'development-doing', dayReady: 3},
+		{name:'S8', subscribers: 10, designWork: 8, designDone: 8, developmentWork: 9, developmentDone: 0, testWork: 14, testDone:0, stage: 'design-done', dayReady: 3},
+		{name:'S9', subscribers: 12, designWork: 9, designDone: 3, developmentWork: 13, developmentDone: 0, testWork: 15, testDone:0, stage: 'design-doing', dayReady: 4},
+		{name:'S10', subscribers: 11, designWork: 10, designDone: 0, developmentWork: 10, developmentDone: 0, testWork: 12, testDone:0, stage: 'design-doing', dayReady: 4},
+		{name:'S11', subscribers: 13, designWork: 12, developmentWork: 11, testWork: 15, stage: 'ready', dayReady: 4},
+		{name:'S12', subscribers: 10, designWork: 7, developmentWork: 10, testWork: 13, stage: 'ready', dayReady: 6},
+		{name:'S13', subscribers: 10, designWork: 8, developmentWork: 11, testWork: 12, stage: 'ready', dayReady: 6},
+		{name:'S14', subscribers: 10, designWork: 9, developmentWork: 11, testWork: 11, stage: 'ready', dayReady: 7},
+		{name:'S15', subscribers: 7, designWork: 5, developmentWork: 9, testWork: 8, stage: 'ready', dayReady: 8},
+		{name:'S16', subscribers: 6, designWork: 5, developmentWork: 7, testWork: 6, stage: 'queue'},
+		{name:'S17', subscribers: 7, designWork: 6, developmentWork: 8, testWork: 7, stage: 'queue'},
+		{name:'S18', subscribers: 7, designWork: 4, developmentWork: 9, testWork: 8, stage: 'queue'},
+		{name:'S19', subscribers: 10, designWork: 9, developmentWork: 9, testWork: 8, stage: 'queue'},
+		{name:'S20', subscribers: 8, designWork: 8, developmentWork: 10, testWork: 7, stage: 'queue'},
+		{name:'S21', subscribers: 7, designWork: 7, developmentWork: 10, testWork: 7, stage: 'queue'},
+		{name:'S22', subscribers: 9, designWork: 9, developmentWork: 11, testWork: 8, stage: 'queue'},
+		{name:'S23', subscribers: 11, designWork: 7, developmentWork: 10, testWork: 9, stage: 'queue'},
+		{name:'S24', subscribers: 9, designWork: 8, developmentWork: 10, testWork: 9, stage: 'queue'},
+		{name:'S25', subscribers: 8, designWork: 10, developmentWork: 8, testWork: 7, stage: 'queue'},
+		{name:'S26', subscribers: 11, designWork: 8, developmentWork: 11, testWork: 13, stage: 'queue'},
+		{name:'S27', subscribers: 10, designWork: 10, developmentWork: 11, testWork: 12, stage: 'queue'},
+		{name:'S28', subscribers: 9, designWork: 9, developmentWork: 9, testWork: 9, stage: 'queue'},
+		{name:'S29', subscribers: 11, designWork: 11, developmentWork: 10, testWork: 11, stage: 'queue'},
+		{name:'S30', subscribers: 7, designWork: 9, developmentWork: 8, testWork: 7, stage: 'queue'},
+		{name:'E1', subtitle: 'Special Job by day 21', cash: 5000, designWork: 14, developmentWork: 15, testWork: 16, stage: 'queue', classOfService: 'expedite', dayReady: 18},
+		{name:'F1', subtitle: 'Sec. Audit', dueDate: 15, fine: 2200, designWork: 3, developmentWork: 5, testWork: 7, stage: 'queue', classOfService: 'fixed-date'},
+		{name:'F2', subtitle: 'Trade show', dueDate: 20, subscribers: 25, designWork: 4, developmentWork: 9, testWork: 8, stage: 'queue', classOfService: 'fixed-date'},
+		{name:'I1', subtitle: 'Database Upgrade', designWork: 4, designDone: 4, developmentWork: 5, testWork: 11, stage: 'development-doing', classOfService: 'intangible', dayReady: 3},
+		{name:'I2', subtitle: 'Refactor core subsystem', designWork: 1, designDone: 0, developmentWork: 13, testWork: 6, stage: 'ready', classOfService: 'intangible', dayReady: 8},
+		{name:'I3', subtitle: 'Document legacy code', designWork: 1, developmentWork: 6, testWork: 1, stage: 'queue', classOfService: 'intangible'}
+	]
+}
+
+var game = null;
+$(function() {
+	var stages = ["ready","development-doing",'development-done','design-doing','design-done','test-doing']
+	for(var i=0; i< stages.length;i++) {
+		$("#${stage}-column".format(stages[i])).sortable({
+				revert: true
+		});
+	}
+	$( "ul, li" ).disableSelection();
+	game = new Game(state);
+	game.draw();
+});
+</script>
+</head>
+<body>
+<table id="players-area" width="100%" border="0" cellpadding="4" cellspacing="0">
+	<tr>
+		<td>
+			<form id="game-control">
+				<table>
+					<tr>
+						<td width="250">
+							<div id="designer-die"></div>
+							<input type="radio" name="designer-choice" value="design" checked/>design
+							<input type="radio" name="designer-choice" value="development"/>development
+							<input type="radio" name="designer-choice" value="test"/>test
+						</td>
+						<td rowspan="3">
+							<input type="button" value="Next Round" onclick="game.nextRound()"/>
+						</td>
+					</tr>
+					<tr>
+						<td>
+							<div id="developer-die"></div>
+							<input type="radio" name="developer-choice" value="design"/>design
+							<input type="radio" name="developer-choice" value="development" checked/>development
+							<input type="radio" name="developer-choice" value="test"/>test
+						</td>
+					</tr>
+					<tr>
+						<td>
+							<div id="tester-die"></div>
+							<input type="radio" name="tester-choice" value="design"/>design
+							<input type="radio" name="tester-choice" value="development"/>development
+							<input type="radio" name="tester-choice" value="test" checked/>test
+						</td>
+					</tr>
+				</table>
+			</form>
+		</td>
+	</tr>
+</table>
+<table id="board" border="0" cellpadding="4" cellspacing="0">
+	<tr id="board-head">
+		<td rowspan="2">Ready (<span id="ready-limit"></span>)</td>
+		<td colspan="2" class="dropable" title="Design">Design (<span id="design-limit"></span>)</td>
+		<td colspan="2" class="dropable"title="Development">Development (<span id="development-limit"></span>)</td>
+		<td class="dropable" title="Test">Test (<span id="test-limit"></span>)</td>
+		<td rowspan="2">Deployed</td>
+	</tr>
+	<tr>
+		<td>Doing</td>
+		<td>Done</td>
+		<td>Doing</td>
+		<td>Done</td>
+		<td>Doing</td>
+	</tr>
+	<tr id="expedite-lane">
+		<td id="expedite-ready-column" valign="top">Expedite (+1)</td>
+		<td id="expedite-design-doing-column" valign="top">&nbsp;</td>
+		<td id="expedite-design-done-column" valign="top">&nbsp;</td>
+		<td id="expedite-development-doing-column" valign="top">&nbsp;</td>
+		<td id="expedite-development-done-column" valign="top">&nbsp;</td>
+		<td id="expedite-test-doing-column" valign="top">&nbsp;</td>
+		<td id="deploy-column" valign="top" rowspan="2">&nbsp;</td>
+	</tr>
+	<tr id="game">
+		<td valign="top"><ul id="ready-column"></ul></td>
+		<td valign="top"><ul id="design-doing-column"></ul></td>
+		<td valign="top"><ul id="design-done-column"></ul></td>
+		<td valign="top"><ul id="development-doing-column"></ul></td>
+		<td valign="top"><ul id="development-done-column"></ul></td>
+		<td valign="top"><ul id="test-doing-column"></ul></td>
+	</tr>
+</table>
+<br/>
+<div id="standard-queue-column"></div>
+<div id="intangible-queue-column"></div>
+<div id="fixed-date-queue-column"></div>
+</body>
+</html>
