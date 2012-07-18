@@ -1,6 +1,7 @@
 <html>
 <head>
 <title>Get Kanban</title>
+<link rel="stylesheet" href="css/qunit.css">
 <style>
 #board td {
 	border: solid 1px #CCCCCC;
@@ -114,6 +115,7 @@ input[type='radio'] {
 </style>
 <script src="javascript/jquery-1.7.2.js"></script>
 <script src="javascript/jquery-ui-1.8.21.custom.min.js"></script>
+<script src="javascript/qunit.js"></script>
 <script>
 if(!String.format) {
 	String.prototype.format = function(data) {
@@ -550,5 +552,11 @@ $(function() {
 <div id="standard-queue-column"></div>
 <div id="intangible-queue-column"></div>
 <div id="fixed-date-queue-column"></div>
+<div id="qunit"></div>
 </body>
 </html>
+<script>
+test( "hello test", function() {
+  ok( 1 == "1", "Passed!" );
+});
+</script>
