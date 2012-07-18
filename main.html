@@ -172,24 +172,26 @@ var UserStory = function(data) {
 	}
 	
 	this.draw = function() {
+		if(this.stage == 'queue') return;
+		
 		var designWork = "";
 		var _designDone = this.designDone;
 		for(var i = 0; i < this.designWork; i++) {
-			designWork += "<input type='radio' disabled${value}/>".format({'value':(_designDone > 0 ? " checked" : "")});
+			designWork += "<input type='radio' disabled${value}/>".format({'value':(_designDone > 0 ? " checked='true'" : "")});
 			_designDone--;
 		}
 		
 		var developmentWork = "";
 		var _developmentDone = this.developmentDone;
 		for(var i = 0; i < this.developmentWork; i++) {
-			developmentWork += "<input type='radio' disabled${value}/>".format({'value':(_developmentDone > 0 ? " checked" : "")});
+			developmentWork += "<input type='radio' disabled${value}/>".format({'value':(_developmentDone > 0 ? " checked='true'" : "")});
 			_developmentDone--;
 		}
 		
 		var testWork = "";
 		var _testDone = this.testDone;
 		for(var i = 0; i < this.testWork; i++) {
-			testWork += "<input type='radio' disabled${value}/>".format({'value':(_testDone > 0 ? " checked" : "")});
+			testWork += "<input type='radio' disabled${value}/>".format({'value':(_testDone > 0 ? " checked='true'" : "")});
 			_testDone--;
 		}
 		
@@ -222,9 +224,11 @@ var Die = function(colorName) {
 	this.sides = 6;
 	this.id = "${colorName}${rand}".format({'colorName':colorName,'rand':idCreate(8)});
 	this.where = "";
+	this.value = null;
 	
 	this.play = function() {
-		return Math.round(Math.random() * this.sides) % this.sides + 1;
+		this.value = Math.round(Math.random() * this.sides) % this.sides + 1;
+		return this.value;
 	}
 	
 	this.redraw = function() {
@@ -263,8 +267,16 @@ var Policy = function() {
 var Game = function(state) {
 	this.day = 9;
 	this.policy = new Policy();
-	this.stories = new Array();
-	this.queueStories = new Array();
+	this.stories = {'get':function(name) {
+		var value = this[name];
+		if(value) return value;
+		
+		value = [];
+		this[name] = value;
+		
+		return value;
+	}};
+	
 	this.round = 1;
 	
 	this.nextRound = function() {
@@ -272,21 +284,43 @@ var Game = function(state) {
 			return;
 		}
 		
-		if(this.policy.developers >= this.round)
-			this.devDie.redraw();
+		function getValue(name) {
+			var inputs = $('input[name="${name}"]'.format(name));
+			for(var i = 0; i < inputs.length; i++) {
+				if(inputs[i].checked)
+					return inputs[i].value;
+			}
+		}
 		
-		if(this.policy.testers >= this.round)	
-			this.testerDie.redraw();
+		var designerTask = getValue("designer-choice");
+		var developerTask = getValue("developer-choice");
+		var testTask = getValue("test-choice");
+
+		if(this.policy.developers >= this.round) {
+			this.devDie.redraw();
+			stories = this.stories.get(developerTask);
+			var stageProperty = developerTask.replace(/-doing/,'')
+			toDoWork = stageProperty + 'Work';
+			doneWork = stageProperty + 'Done';
 			
-		if(this.policy.designers >= this.round)
+			alert(stories[0][toDoWork])
+		}
+		
+		if(this.policy.testers >= this.round)	{
+			this.testerDie.redraw();
+		}
+			
+		if(this.policy.designers >= this.round) {
 			this.designerDie.redraw();
+		}
 			
 		this.round++;
 	}
 	
 	for(var i=0; i < state['stories'].length; i++) {
-		var storyHolder = state.stories[i].stage == 'queue' ? this.queueStories : this.stories;
-		storyHolder.push(new UserStory(state.stories[i]));
+		var stageStories = this.stories.get(state.stories[i].stage);
+		
+		stageStories.push(new UserStory(state.stories[i]));
 	}
 	
 	this.advanceDay = function() {
@@ -310,9 +344,15 @@ var Game = function(state) {
 		$('#development-limit').html(this.policy.developmentLimit);
 		$('#test-limit').html(this.policy.testLimit);
 		
-		for(var i=0; i<this.stories.length; i++) {
-			this.stories[i].draw();
+		for(stage in this.stories) {
+			if(stage == 'get') continue;
+			
+			var _stories = this.stories[stage];
+			for(var i=0; i < _stories.length; i++) {
+				_stories[i].draw();
+			}
 		}
+
 		// 
 		// var developersDice = {};
 		// var designersDice = {};
@@ -339,9 +379,9 @@ var Game = function(state) {
 
 var state = {
 	'stories': [
-		{name:'S1', subscribers: 11, designWork: 10, designDone: 10, developmentWork: 11, developmentDone: 11, testWork: 11, stage: 'test-doing', dayReady: 1},
-		{name:'S2', subscribers: 12, designWork: 12, designDone: 12, developmentWork: 13, developmentDone: 13, testWork: 12, testDone:0, stage:'test-doing', dayReady: 1},
-		{name:'S3', subscribers: 11, designWork: 11, designDone: 11, developmentWork: 12, developmentDone: 12, testWork: 11, testDone:0, stage: 'test-doing', dayReady: 1},
+		{name:'S1', subscribers: 11, designWork: 10, designDone: 10, developmentWork: 11, developmentDone: 11, testWork: 11, stage: 'test', dayReady: 1},
+		{name:'S2', subscribers: 12, designWork: 12, designDone: 12, developmentWork: 13, developmentDone: 13, testWork: 12, testDone:0, stage:'test', dayReady: 1},
+		{name:'S3', subscribers: 11, designWork: 11, designDone: 11, developmentWork: 12, developmentDone: 12, testWork: 11, testDone:0, stage: 'test', dayReady: 1},
 		{name:'S4', subscribers: 10, designWork: 8, designDone: 8, developmentWork: 11, developmentDone: 11, testWork: 11, testDone:0, stage: 'development-done', dayReady: 2},
 		{name:'S5', subscribers: 13, designWork: 12, designDone: 12, developmentWork: 14, developmentDone: 14, testWork: 13, testDone:0, stage: 'development-done', dayReady: 2},
 		{name:'S6', subscribers: 11, designWork: 9, designDone: 9, developmentWork: 11, developmentDone: 3, testWork: 12, testDone:0, stage: 'development-doing', dayReady: 3},
@@ -380,7 +420,7 @@ var state = {
 
 var game = null;
 $(function() {
-	var stages = ["ready","development-doing",'development-done','design-doing','design-done','test-doing']
+	var stages = ["ready","development-doing",'development-done','design-doing','design-done','test']
 	for(var i=0; i< stages.length;i++) {
 		$("#${stage}-column".format(stages[i])).sortable({
 				revert: true
@@ -401,9 +441,9 @@ $(function() {
 					<tr>
 						<td width="250">
 							<div id="designer-die"></div>
-							<input type="radio" name="designer-choice" value="design" checked/>design
-							<input type="radio" name="designer-choice" value="development"/>development
-							<input type="radio" name="designer-choice" value="test"/>test
+							<input type="radio" name="designer-choice" value="design-doing" id="designer-designer" checked="true"/><label for="designer-designer">design</label>
+							<input type="radio" name="designer-choice" value="development-doing" id="designer-development"/><label for="designer-development">development</label>
+							<input type="radio" name="designer-choice" value="test" id="designer-test"/><label for="designer-test">test</label>
 						</td>
 						<td rowspan="3">
 							<input type="button" value="Next Round" onclick="game.nextRound()"/>
@@ -412,17 +452,17 @@ $(function() {
 					<tr>
 						<td>
 							<div id="developer-die"></div>
-							<input type="radio" name="developer-choice" value="design"/>design
-							<input type="radio" name="developer-choice" value="development" checked/>development
-							<input type="radio" name="developer-choice" value="test"/>test
+							<input type="radio" name="developer-choice" value="design-doing" id="developer-designer"/><label for="developer-designer">design</label>
+							<input type="radio" name="developer-choice" value="development-doing" id="developer-development" checked="true"/><label for="developer-development">development</label>
+							<input type="radio" name="developer-choice" value="test" id="developer-test"/><label for="developer-test">test</label>
 						</td>
 					</tr>
 					<tr>
 						<td>
 							<div id="tester-die"></div>
-							<input type="radio" name="tester-choice" value="design"/>design
-							<input type="radio" name="tester-choice" value="development"/>development
-							<input type="radio" name="tester-choice" value="test" checked/>test
+							<input type="radio" name="tester-choice" value="design-doing" id="tester-designer"/><label for="tester-designer">design</label>
+							<input type="radio" name="tester-choice" value="development-doing" id="tester-development"/><label for="tester-development">development</label>
+							<input type="radio" name="tester-choice" value="test" checked="true" id="tester-test"/><label for="tester-test">test</label>
 						</td>
 					</tr>
 				</table>
@@ -451,7 +491,7 @@ $(function() {
 		<td id="expedite-design-done-column" valign="top">&nbsp;</td>
 		<td id="expedite-development-doing-column" valign="top">&nbsp;</td>
 		<td id="expedite-development-done-column" valign="top">&nbsp;</td>
-		<td id="expedite-test-doing-column" valign="top">&nbsp;</td>
+		<td id="expedite-test-column" valign="top">&nbsp;</td>
 		<td id="deploy-column" valign="top" rowspan="2">&nbsp;</td>
 	</tr>
 	<tr id="game">
@@ -460,7 +500,7 @@ $(function() {
 		<td valign="top"><ul id="design-done-column"></ul></td>
 		<td valign="top"><ul id="development-doing-column"></ul></td>
 		<td valign="top"><ul id="development-done-column"></ul></td>
-		<td valign="top"><ul id="test-doing-column"></ul></td>
+		<td valign="top"><ul id="test-column"></ul></td>
 	</tr>
 </table>
 <br/>
