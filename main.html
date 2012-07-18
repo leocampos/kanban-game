@@ -171,6 +171,26 @@ var UserStory = function(data) {
 		}
 	}
 	
+	this.workToDoInStage = function(stage) {
+		return this[stage + 'Work'] - this[stage + 'Done'];
+	}
+	
+	this.addWorkToStage = function(stage, points) {
+		if(this.workToDoInStage(stage) > points) {
+			this[stage + 'Done'] += points;
+			return 0;
+		}
+		
+		var pointsDiff = this.workToDoInStage(stage);
+		this[stage + 'Done'] = this[stage + 'Work'];
+		return pointsDiff;
+	}
+	
+	this.update = function() {
+		this.isUpdate = true;
+		this.draw();
+	}
+	
 	this.draw = function() {
 		if(this.stage == 'queue') return;
 		
@@ -205,17 +225,31 @@ var UserStory = function(data) {
 			revenue = "";
 		}
 
-		var html = "<li id='${name}'><table border='0' cellpadding='4' cellspacing='0' class='${classOfService}-class'>";
+		var storyDomElement = $("#${name}".format(this.name));
+		var isNew = storyDomElement.length == 0;
+		
+		var html = "";
+		if(isNew)
+			html += "<li id='${name}'>";
+		
+		html += "<table border='0' cellpadding='4' cellspacing='0' class='${classOfService}-class'>";
 		html += "<tr><td>${name}&nbsp;<span class='subtitle'>${subtitle}</span></td><td align='right'>${revenue}</td></tr>";
 		html += "<tr class='design-row'><td class='story-name-column'>Design</td><td class='story-work-column'>${designWork}</td></tr>";
 		html += "<tr class='development-row'><td class='story-name-column'>Dev.</td><td class='story-work-column'>${developmentWork}</td></tr>";
 		html += "<tr class='test-row'><td class='story-name-column'>Test</td><td class='story-work-column'>${testWork}</td></tr>";
-		html += "</table></li>";
+		html += "</table>";
+		
+		if(isNew)
+			html += "</li>";
+			
 		html = html.format({'classOfService':this.classOfService, 'revenue':revenue, 'name': this.name, 'designWork': designWork, 'developmentWork': developmentWork, 'testWork': testWork, 'subtitle': this.subtitle});
 		
 		var _stage = this.stage == 'queue' ? this.classOfService + "-queue" : this.stage;
 		
-		$("#${stage}-column".format(_stage)).append(html);
+		if(isNew)
+			$("#${stage}-column".format(_stage)).append(html);
+		else
+			storyDomElement.html(html);
 	}
 }
 
@@ -292,18 +326,27 @@ var Game = function(state) {
 			}
 		}
 		
-		var designerTask = getValue("designer-choice");
-		var developerTask = getValue("developer-choice");
-		var testTask = getValue("test-choice");
+		var designerAssignment = getValue("designer-choice");
+		var developerAssignment = getValue("developer-choice");
+		var testAssignment = getValue("test-choice");
 
 		if(this.policy.developers >= this.round) {
 			this.devDie.redraw();
-			stories = this.stories.get(developerTask);
-			var stageProperty = developerTask.replace(/-doing/,'')
+			stories = this.stories.get(developerAssignment);
+			var stageProperty = developerAssignment.replace(/-doing/,'')
+			
 			toDoWork = stageProperty + 'Work';
 			doneWork = stageProperty + 'Done';
 			
-			alert(stories[0][toDoWork])
+			remainingWorkForce = this.devDie.value * (stageProperty == 'development' ? 2 : 1);
+			
+			for(var i=0;i< stories.length; i++) {
+				alert(remainingWorkForce);
+				remainingWorkForce = stories[i].addWorkToStage(stageProperty, remainingWorkForce);
+				stories[i].update();
+				if(remainingWorkForce == 0)
+					break;
+			}
 		}
 		
 		if(this.policy.testers >= this.round)	{
