@@ -119,6 +119,9 @@ input[type='radio'] {
 <script>
 if(!String.format) {
 	String.prototype.format = function(data) {
+		if(arguments.length == 0)
+			return this;
+			
 		var retorno = this;
 		
 		while(match = retorno.match(/\$\{(\w+)\}/)) {
@@ -133,6 +136,8 @@ if(!String.format) {
 }
 
 var idCreate = function(size) {
+	if(arguments.length == 0) return '';
+	
 	var letters = "abcdefghijklmnopqrstuwxyz0123456789";
 	
 	var randomize = function() {
@@ -163,6 +168,8 @@ var UserStory = function(data) {
 	this.dueDate = 0; //For the expedite and fixed dates
 	this.subtitle = '';
 	
+	var VALID_STAGES = {'design':true,'development':true,'test':true};
+	
 	for(prop in data) {
 		var value = data[prop]
 		var evalValue = typeof value == 'string' ? "'" + value + "'" : value;
@@ -174,7 +181,11 @@ var UserStory = function(data) {
 	}
 	
 	this.workToDoInStage = function(stage) {
-		return this[stage + 'Work'] - this[stage + 'Done'];
+		if(typeof VALID_STAGES[stage] == 'undefined') throw 'Invalid Stage Parameter';
+		var returnValue = this[stage + 'Work'] - this[stage + 'Done'];
+		
+		if(returnValue < 0) throw 'Invalid State Exception : There is more work done than work available';
+		return returnValue;
 	}
 	
 	this.addWorkToStage = function(stage, points) {
@@ -556,7 +567,139 @@ $(function() {
 </body>
 </html>
 <script>
-test( "hello test", function() {
-  ok( 1 == "1", "Passed!" );
+/*
+	this.addWorkToStage = function(stage, points) {
+		if(this.workToDoInStage(stage) > points) {
+			this[stage + 'Done'] += points;
+			return 0;
+		}
+		
+		var pointsDiff = this.workToDoInStage(stage);
+		this[stage + 'Done'] = this[stage + 'Work'];
+		return pointsDiff;
+	}
+	
+	this.update = function() {
+		this.isUpdate = true;
+		this.draw();
+	}
+	
+	this.draw = function() {
+		if(this.stage == 'queue') return;
+		
+		var designWork = "";
+		var _designDone = this.designDone;
+		for(var i = 0; i < this.designWork; i++) {
+			designWork += "<input type='radio' disabled${value}/>".format({'value':(_designDone > 0 ? " checked='true'" : "")});
+			_designDone--;
+		}
+		
+		var developmentWork = "";
+		var _developmentDone = this.developmentDone;
+		for(var i = 0; i < this.developmentWork; i++) {
+			developmentWork += "<input type='radio' disabled${value}/>".format({'value':(_developmentDone > 0 ? " checked='true'" : "")});
+			_developmentDone--;
+		}
+		
+		var testWork = "";
+		var _testDone = this.testDone;
+		for(var i = 0; i < this.testWork; i++) {
+			testWork += "<input type='radio' disabled${value}/>".format({'value':(_testDone > 0 ? " checked='true'" : "")});
+			_testDone--;
+		}
+		
+		if(this.subscribers > 0) {
+			revenue = "subs: ${x}".format(this.subscribers);
+		} else if(this.fine > 0) {
+			revenue = "fine: ${x}".format(this.fine);
+		} else if(this.cash > 0) {
+			revenue = "cash: ${x}".format(this.cash);
+		} else {
+			revenue = "";
+		}
+
+		var storyDomElement = $("#${name}".format(this.name));
+		var isNew = storyDomElement.length == 0;
+		
+		var html = "";
+		if(isNew)
+			html += "<li id='${name}'>";
+		
+		html += "<table border='0' cellpadding='4' cellspacing='0' class='${classOfService}-class'>";
+		html += "<tr><td>${name}&nbsp;<span class='subtitle'>${subtitle}</span></td><td align='right'>${revenue}</td></tr>";
+		html += "<tr class='design-row'><td class='story-name-column'>Design</td><td class='story-work-column'>${designWork}</td></tr>";
+		html += "<tr class='development-row'><td class='story-name-column'>Dev.</td><td class='story-work-column'>${developmentWork}</td></tr>";
+		html += "<tr class='test-row'><td class='story-name-column'>Test</td><td class='story-work-column'>${testWork}</td></tr>";
+		html += "</table>";
+		
+		if(isNew)
+			html += "</li>";
+			
+		html = html.format({'classOfService':this.classOfService, 'revenue':revenue, 'name': this.name, 'designWork': designWork, 'developmentWork': developmentWork, 'testWork': testWork, 'subtitle': this.subtitle});
+		
+		var _stage = this.stage == 'queue' ? this.classOfService + "-queue" : this.stage;
+		
+		if(isNew)
+			$("#${stage}-column".format(_stage)).append(html);
+		else
+			storyDomElement.html(html);
+	}
+}
+*/
+module("User Story");
+test("User Story should populate its fields on initialization", function() {
+	var story = new UserStory({'classOfService':'CLASS', 'developmentWork':'WORK', 'subtitle':99})
+	ok(story.classOfService == 'CLASS', "Passed!" );
+	ok(story.developmentWork == 'WORK', "Passed!" );
+	ok(story.subtitle == 99, "Passed!" );
+});
+
+test("workToDoInStage should throw error if stage is invalid", function(){
+	var story = new UserStory();
+	throws(
+    function() {
+      story.workToDoInStage('INVALID');
+    },
+    "throws with just a message, no expected"
+  );
+});
+
+test("workToDoInStage should return the work left in specified stage", function(){
+	var story = new UserStory({'developmentWork':10, 'developmentDone':5});
+  ok(story.workToDoInStage('development') == 5, 'Passed!');
+	story.developmentWork = 4;
+	throws(
+    function() {
+      story.workToDoInStage('development');
+    },
+    "throws with just a message, no expected"
+  );
+});
+
+module("String function");
+test( "format should replace ${variable} for parameter if it is not object", function() {
+  ok("TEST${a}TEST".format('-') == 'TEST-TEST', "Passed!" );
+});
+
+test( "format should replace ${variable} for jsons property if it is an object", function() {
+  ok("TEST${a}TEST${a}".format({'b':1,'a':2}) == 'TEST2TEST2', "Passed!" );
+});
+
+test( "format should replace ${variable} for nothing if no parameter is passed", function() {
+  ok("TEST${a}TEST$".format() == 'TEST${a}TEST$', "Passed!" );
+});
+
+module("idCreate");
+test( "idCreate shoud generate a random string with given size", function() {
+	var origFunc = Math.random;
+	Math.random = function() {
+		return 0.2;
+	};
+  ok(idCreate(8) == 'hhhhhhhh', "Passed!" );
+	Math.random = origFunc;
+});
+
+test("idCreate should generate empty string if no parameter given", function() {
+	ok(idCreate() == '', "Passed!" );
 });
 </script>
