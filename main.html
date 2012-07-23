@@ -117,6 +117,14 @@ input[type='radio'] {
 <script src="javascript/jquery-ui-1.8.21.custom.min.js"></script>
 <script src="javascript/qunit.js"></script>
 <script>
+var STORY_TEMPLATE = "";
+STORY_TEMPLATE += "<table border='0' cellpadding='4' cellspacing='0' class='${classOfService}-class'>";
+STORY_TEMPLATE += "<tr><td>${name}&nbsp;<span class='subtitle'>${subtitle}</span></td><td align='right'>${revenue}</td></tr>";
+STORY_TEMPLATE += "<tr class='design-row'><td class='story-name-column'>Design</td><td class='story-work-column'>${designWork}</td></tr>";
+STORY_TEMPLATE += "<tr class='development-row'><td class='story-name-column'>Dev.</td><td class='story-work-column'>${developmentWork}</td></tr>";
+STORY_TEMPLATE += "<tr class='test-row'><td class='story-name-column'>Test</td><td class='story-work-column'>${testWork}</td></tr>";
+STORY_TEMPLATE += "</table>";
+
 if(!String.format) {
 	String.prototype.format = function(data) {
 		if(arguments.length == 0)
@@ -168,6 +176,8 @@ var UserStory = function(data) {
 	this.dueDate = 0; //For the expedite and fixed dates
 	this.subtitle = '';
 	
+	var that = this;
+	
 	var VALID_STAGES = {'design':true,'development':true,'test':true};
 	
 	for(prop in data) {
@@ -188,13 +198,13 @@ var UserStory = function(data) {
 		return returnValue;
 	}
 	
-	this.addWorkToStage = function(stage, points) {
-		if(this.workToDoInStage(stage) > points) {
+	this.addWorkDoneToStage = function(stage, points) {
+		if(this.workToDoInStage(stage) >= points) {
 			this[stage + 'Done'] += points;
 			return 0;
 		}
 		
-		var pointsDiff = this.workToDoInStage(stage);
+		var pointsDiff = points - this.workToDoInStage(stage);
 		this[stage + 'Done'] = this[stage + 'Work'];
 		return pointsDiff;
 	}
@@ -204,65 +214,50 @@ var UserStory = function(data) {
 		this.draw();
 	}
 	
+	var getStoryEffortRepresentation = function(stageName) {
+		var text = "";
+		var doneWork = eval("that." + stageName + "Done");
+		var toDoWork = eval("that." + stageName + "Work");
+		
+		for(var i = 0; i < toDoWork; i++) {
+			text += "<input type='radio' disabled${value}/>".format({'value':(doneWork > 0 ? " checked='true'" : "")});
+			doneWork--;
+		}
+		
+		return text;
+	}
+	
+	var formatStoryValue = function() {
+		if(that.subscribers > 0) return "subs: ${x}".format(that.subscribers);
+		if(that.fine > 0) return "fine: ${x}".format(that.fine);
+		if(that.cash > 0) return "cash: ${x}".format(that.cash);
+		
+		return '';
+	}
+	
+	var isNew = function() {
+		return $("#${name}".format(this.name)).length == 0;
+	}
+	
+	var writeElement = function() {
+		return isNew() ? "<li id='${name}'>" + STORY_TEMPLATE + "</li>" : STORY_TEMPLATE;
+	}
+	
 	this.draw = function() {
 		if(this.stage == 'queue') return;
 		
-		var designWork = "";
-		var _designDone = this.designDone;
-		for(var i = 0; i < this.designWork; i++) {
-			designWork += "<input type='radio' disabled${value}/>".format({'value':(_designDone > 0 ? " checked='true'" : "")});
-			_designDone--;
-		}
-		
-		var developmentWork = "";
-		var _developmentDone = this.developmentDone;
-		for(var i = 0; i < this.developmentWork; i++) {
-			developmentWork += "<input type='radio' disabled${value}/>".format({'value':(_developmentDone > 0 ? " checked='true'" : "")});
-			_developmentDone--;
-		}
-		
-		var testWork = "";
-		var _testDone = this.testDone;
-		for(var i = 0; i < this.testWork; i++) {
-			testWork += "<input type='radio' disabled${value}/>".format({'value':(_testDone > 0 ? " checked='true'" : "")});
-			_testDone--;
-		}
-		
-		if(this.subscribers > 0) {
-			revenue = "subs: ${x}".format(this.subscribers);
-		} else if(this.fine > 0) {
-			revenue = "fine: ${x}".format(this.fine);
-		} else if(this.cash > 0) {
-			revenue = "cash: ${x}".format(this.cash);
-		} else {
-			revenue = "";
-		}
-
+		var designWork = getStoryEffortRepresentation('design');
+		var developmentWork = getStoryEffortRepresentation('development');
+		var testWork = getStoryEffortRepresentation('test');
+		var revenue = formatStoryValue();
 		var storyDomElement = $("#${name}".format(this.name));
-		var isNew = storyDomElement.length == 0;
-		
-		var html = "";
-		if(isNew)
-			html += "<li id='${name}'>";
-		
-		html += "<table border='0' cellpadding='4' cellspacing='0' class='${classOfService}-class'>";
-		html += "<tr><td>${name}&nbsp;<span class='subtitle'>${subtitle}</span></td><td align='right'>${revenue}</td></tr>";
-		html += "<tr class='design-row'><td class='story-name-column'>Design</td><td class='story-work-column'>${designWork}</td></tr>";
-		html += "<tr class='development-row'><td class='story-name-column'>Dev.</td><td class='story-work-column'>${developmentWork}</td></tr>";
-		html += "<tr class='test-row'><td class='story-name-column'>Test</td><td class='story-work-column'>${testWork}</td></tr>";
-		html += "</table>";
-		
-		if(isNew)
-			html += "</li>";
+		var html = writeElement();
 			
 		html = html.format({'classOfService':this.classOfService, 'revenue':revenue, 'name': this.name, 'designWork': designWork, 'developmentWork': developmentWork, 'testWork': testWork, 'subtitle': this.subtitle});
 		
 		var _stage = this.stage == 'queue' ? this.classOfService + "-queue" : this.stage;
 		
-		if(isNew)
-			$("#${stage}-column".format(_stage)).append(html);
-		else
-			storyDomElement.html(html);
+		isNew() ? $("#${stage}-column".format(_stage)).append(html) : storyDomElement.html(html);
 	}
 }
 
@@ -355,7 +350,7 @@ var Game = function(state) {
 			
 			for(var i=0;i< stories.length; i++) {
 				alert(remainingWorkForce);
-				remainingWorkForce = stories[i].addWorkToStage(stageProperty, remainingWorkForce);
+				remainingWorkForce = stories[i].addWorkDoneToStage(stageProperty, remainingWorkForce);
 				stories[i].update();
 				if(remainingWorkForce == 0)
 					break;
@@ -384,12 +379,6 @@ var Game = function(state) {
 	}
 	
 	var initialize = function() {
-		// $(".dropable").droppable({
-		// 		drop: function( event, ui ) {
-		// 			var column = $(this).attr("title");
-		// 			alert($(ui.draggable).attr("id"));
-		// 		}
-		//  });
 	}
 	
 	this.draw = function() {
@@ -409,27 +398,12 @@ var Game = function(state) {
 			}
 		}
 
-		// 
-		// var developersDice = {};
-		// var designersDice = {};
-		// var testersDice = {};
-		// for(var i=0;i<3;i++) {
 		this.devDie = new Die("blue");
-		// 	developersDice[devDie.id] = devDie;
 		this.devDie.draw('developer-die', '?');
-		// }
-		// 
-		// for(var i=0;i<2;i++) {
 		this.testerDie = new Die("orange");
-		// 	testersDice[testerDie.id] = testerDie;
 		this.testerDie.draw('tester-die', '?');
-		// }
-		// 
-		// for(var i=0;i<2;i++) {
 		this.designerDie = new Die("red");
-		// 	designersDice[designerDie.id] = designerDie;
 		this.designerDie.draw('designer-die', '?');
-		// }
 	}
 }
 
@@ -567,86 +541,46 @@ $(function() {
 </body>
 </html>
 <script>
-/*
-	this.addWorkToStage = function(stage, points) {
-		if(this.workToDoInStage(stage) > points) {
-			this[stage + 'Done'] += points;
-			return 0;
-		}
-		
-		var pointsDiff = this.workToDoInStage(stage);
-		this[stage + 'Done'] = this[stage + 'Work'];
-		return pointsDiff;
-	}
-	
-	this.update = function() {
-		this.isUpdate = true;
-		this.draw();
-	}
-	
-	this.draw = function() {
-		if(this.stage == 'queue') return;
-		
-		var designWork = "";
-		var _designDone = this.designDone;
-		for(var i = 0; i < this.designWork; i++) {
-			designWork += "<input type='radio' disabled${value}/>".format({'value':(_designDone > 0 ? " checked='true'" : "")});
-			_designDone--;
-		}
-		
-		var developmentWork = "";
-		var _developmentDone = this.developmentDone;
-		for(var i = 0; i < this.developmentWork; i++) {
-			developmentWork += "<input type='radio' disabled${value}/>".format({'value':(_developmentDone > 0 ? " checked='true'" : "")});
-			_developmentDone--;
-		}
-		
-		var testWork = "";
-		var _testDone = this.testDone;
-		for(var i = 0; i < this.testWork; i++) {
-			testWork += "<input type='radio' disabled${value}/>".format({'value':(_testDone > 0 ? " checked='true'" : "")});
-			_testDone--;
-		}
-		
-		if(this.subscribers > 0) {
-			revenue = "subs: ${x}".format(this.subscribers);
-		} else if(this.fine > 0) {
-			revenue = "fine: ${x}".format(this.fine);
-		} else if(this.cash > 0) {
-			revenue = "cash: ${x}".format(this.cash);
-		} else {
-			revenue = "";
-		}
-
-		var storyDomElement = $("#${name}".format(this.name));
-		var isNew = storyDomElement.length == 0;
-		
-		var html = "";
-		if(isNew)
-			html += "<li id='${name}'>";
-		
-		html += "<table border='0' cellpadding='4' cellspacing='0' class='${classOfService}-class'>";
-		html += "<tr><td>${name}&nbsp;<span class='subtitle'>${subtitle}</span></td><td align='right'>${revenue}</td></tr>";
-		html += "<tr class='design-row'><td class='story-name-column'>Design</td><td class='story-work-column'>${designWork}</td></tr>";
-		html += "<tr class='development-row'><td class='story-name-column'>Dev.</td><td class='story-work-column'>${developmentWork}</td></tr>";
-		html += "<tr class='test-row'><td class='story-name-column'>Test</td><td class='story-work-column'>${testWork}</td></tr>";
-		html += "</table>";
-		
-		if(isNew)
-			html += "</li>";
-			
-		html = html.format({'classOfService':this.classOfService, 'revenue':revenue, 'name': this.name, 'designWork': designWork, 'developmentWork': developmentWork, 'testWork': testWork, 'subtitle': this.subtitle});
-		
-		var _stage = this.stage == 'queue' ? this.classOfService + "-queue" : this.stage;
-		
-		if(isNew)
-			$("#${stage}-column".format(_stage)).append(html);
-		else
-			storyDomElement.html(html);
-	}
-}
-*/
 module("User Story");
+test("update should call draw()", function(){
+	var story = new UserStory();
+	var called = false;
+	story.draw = function() {
+		called = true;
+	}
+	
+	story.update();
+	ok(called, 'Passed!');
+});
+
+test("addWorkDoneToStage should throw error if stage is invalid", function(){
+	var story = new UserStory();
+	throws(
+    function() {
+      story.addWorkDoneToStage('INVALID');
+    },
+    "throws with just a message, no expected"
+  );
+});
+
+test('addWorkDoneToStage should return 0 if workToDo is bigger or equal to the points given', function(){
+	var story = new UserStory();
+	story.designWork = 20;
+	story.designDone = 10;
+	
+	ok(story.addWorkDoneToStage('design', 5) == 0, 'Passed!');
+	ok(story.addWorkDoneToStage('design', 5) == 0, 'Passed!');
+});
+
+test('addWorkDoneToStage should return the difference of point if workToDo is lesser than the points given', function(){
+	var story = new UserStory();
+	story.developmentWork = 20;
+	story.developmentDone = 10;
+	
+	var diff = story.addWorkDoneToStage('development', 11);
+	ok(diff == 1, 'Passed!');
+});
+
 test("User Story should populate its fields on initialization", function() {
 	var story = new UserStory({'classOfService':'CLASS', 'developmentWork':'WORK', 'subtitle':99})
 	ok(story.classOfService == 'CLASS', "Passed!" );
